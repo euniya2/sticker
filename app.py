@@ -31,23 +31,14 @@ if st.button("칭찬 스티커 만들기"):
             # Gemini API 설정
             genai.configure(api_key=api_key)
             
-            # 💡 수정된 부분: 이미지 생성 전용 모델 호출 방식
-            # Imagen 3 모델은 GenerativeModel이 아닌 별도의 방식으로 호출될 수 있습니다.
-            # 최신 SDK 기준으로는 아래와 같은 방식을 권장합니다.
-            
+            # 이미지 생성을 위한 프롬프트 구성
             image_prompt = f"A cute and friendly 3D cartoon character sticker for a student who {praise_text}. White background, vibrant colors, sticker style with a thick white border, high quality, centered."
             
-            with st.spinner('AI가 맞춤형 스티커를 그리고 있습니다... (약 10~20초 소요)'):
-                # 모델 리스트에서 사용 가능한 Imagen 모델 확인 후 호출
-                # 보통 'imagen-3.0-generate-001' 모델명을 사용합니다.
-                model = genai.GenerativeModel('gemini-1.5-flash') # 텍스트 보조용 (선택사항)
-                
-                # 이미지 생성 호출 (최신 SDK의 Imagen 호출 문법 반영)
-                # 만약 imagen-3.0-generate-001 모델이 직접 호출되지 않는 경우를 대비해 
-                # 공식 문서의 최신 메소드 형식을 따릅니다.
-                
-                # 이미지 생성 모델 객체 생성
-                imagen = genai.get_model('models/imagen-3.0-generate-001')
+            with st.spinner('AI가 최신 Imagen 4 모델로 스티커를 그리고 있습니다... (약 10~20초 소요)'):
+                # 💡 스크린샷에서 확인된 최신 모델명으로 수정
+                # 'imagen-4.0-generate-001' 또는 'gemini-2.5-flash-image' 사용 가능
+                model_name = 'models/imagen-4.0-generate-001'
+                imagen = genai.get_model(model_name)
                 
                 # 이미지 생성 실행
                 result = imagen.generate_images(
@@ -59,7 +50,7 @@ if st.button("칭찬 스티커 만들기"):
                 )
                 
                 if result and result.images:
-                    st.success("짜잔! 스티커가 완성되었습니다.")
+                    st.success("짜잔! 최신 모델로 스티커가 완성되었습니다.")
                     
                     # 스티커 카드 디자인
                     st.markdown(f"""
@@ -71,13 +62,18 @@ if st.button("칭찬 스티커 만들기"):
                     
                     # 생성된 이미지 표시
                     generated_image = result.images[0]
-                    # 이미지가 PIL Image 객체이거나 바이트 데이터일 수 있음
-                    st.image(generated_image._pil_image, use_column_width=True)
-                    
-                    # 다운로드 버튼 준비
-                    buf = io.BytesIO()
-                    generated_image._pil_image.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
+                    # 이미지가 PIL Image 객체인 경우 _pil_image 사용
+                    if hasattr(generated_image, '_pil_image'):
+                        st.image(generated_image._pil_image, use_column_width=True)
+                        
+                        # 다운로드 버튼 준비
+                        buf = io.BytesIO()
+                        generated_image._pil_image.save(buf, format="PNG")
+                        byte_im = buf.getvalue()
+                    else:
+                        st.image(generated_image, use_column_width=True)
+                        # 바이트 데이터인 경우 처리
+                        byte_im = generated_image
                     
                     st.download_button(
                         label="스티커 다운로드하기",
@@ -86,13 +82,11 @@ if st.button("칭찬 스티커 만들기"):
                         mime="image/png"
                     )
                 else:
-                    st.error("이미지를 생성하지 못했습니다. Google AI Studio에서 Imagen 모델 접근 권한을 확인해 보세요.")
+                    st.error("이미지를 생성하지 못했습니다. Google AI Studio에서 모델 권한을 다시 확인해 보세요.")
                     
         except Exception as e:
-            # 구체적인 에러 메시지 출력
             st.error(f"오류가 발생했습니다: {str(e)}")
-            if "404" in str(e):
-                st.info("💡 힌트: Google AI Studio 사이트의 'Settings'에서 'Imagen' 기능이 활성화되어 있는지 확인해 보세요. 일부 지역이나 계정에서는 모델명이 다를 수 있습니다.")
+            st.info("💡 힌트: 스크린샷에 보이는 'Imagen 4' 또는 'Nano Banana' 모델명을 코드의 model_name 변수에 정확히 입력했는지 확인해 보세요.")
 
 st.divider()
-st.caption("Jenius의 바이브 코딩 실습 프로젝트 3 - Imagen 3")
+st.caption("Jenius의 바이브 코딩 실습 프로젝트 3 - Imagen 4 적용 버전")
