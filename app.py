@@ -9,7 +9,7 @@ st.set_page_config(page_title="AI 칭찬 스티커 생성기", layout="centered"
 st.title("🎨 AI 맞춤형 칭찬 스티커 생성기")
 st.write("학생의 잘한 점을 입력하면 AI가 귀여운 캐릭터 스티커를 만들어 줍니다!")
 
-# 사이드바 설정 (API Key 입력)
+# 사이드바 설정
 with st.sidebar:
     st.title("⚙️ 설정")
     api_key = st.text_input("Google API Key를 입력하세요", type="password")
@@ -18,8 +18,7 @@ with st.sidebar:
 
 # 메인 입력창
 praise_text = st.text_area("학생에 대한 칭찬 내용을 입력하세요", 
-                          placeholder="예: 발표를 너무 잘했음, 친구를 배려함",
-                          help="칭찬 내용을 바탕으로 AI가 캐릭터 테마를 결정합니다.")
+                          placeholder="예: 발표를 너무 잘했음, 친구를 배려함")
 
 if st.button("칭찬 스티커 만들기"):
     if not api_key:
@@ -28,81 +27,48 @@ if st.button("칭찬 스티커 만들기"):
         st.warning("칭찬 내용을 입력해 주세요.")
     else:
         try:
-            # API 설정
             genai.configure(api_key=api_key)
+            image_prompt = f"A cute 3D cartoon character sticker for a student who {praise_text}. White background, vibrant colors, sticker style, high quality, centered."
             
-            # 칭찬 스티커용 프롬프트
-            image_prompt = f"A cute and friendly 3D cartoon character sticker for a student who {praise_text}. White background, vibrant colors, sticker style with a thick white border, high quality, centered."
-            
-            with st.spinner('AI가 스티커를 그리고 있습니다... (약 10~20초 소요)'):
-                # 최신 방식 (ImageGenerationModel) 시도
-                # 계정에 따라 권한이 있는 모델이 다를 수 있으므로 순차적으로 시도합니다.
-                candidate_models = [
-                    'imagen-4.0-generate-001',        # Imagen 4
-                    'imagen-3.1-flash-image-preview', # Nano Banana 2
-                    'imagen-3.0-generate-001'         # Imagen 3
-                ]
-                
-                result = None
-                active_model = None
-                
-                # ImageGenerationModel 클래스 지원 여부 확인
-                if hasattr(genai, 'ImageGenerationModel'):
-                    for model_name in candidate_models:
-                        try:
-                            model = genai.ImageGenerationModel(model_name)
-                            # 이미지 생성 시도
-                            result = model.generate_images(
-                                prompt=image_prompt,
-                                number_of_images=1,
-                                safety_filter_level="block_some",
-                                person_generation="allow_adult"
-                            )
-                            if result and result.images:
-                                active_model = model_name
-                                break
-                        except Exception:
-                            continue
-                    
-                    if result and result.images:
-                        st.success(f"스티커가 완성되었습니다! (사용 모델: {active_model})")
-                        
-                        # 스티커 카드 디자인 UI
-                        st.markdown(f"""
-                        <div style="background-color: white; padding: 20px; border-radius: 20px; border: 5px solid #FFD700; text-align: center; box-shadow: 10px 10px 20px rgba(0,0,0,0.1); margin-bottom: 20px;">
-                            <h2 style="color: #FF4B4B; margin: 0;">🌟 참 잘했어요! 🌟</h2>
-                            <p style="font-size: 1.2rem; color: #333; margin-top: 10px;"><strong>"{praise_text}"</strong></p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        generated_image = result.images[0]
-                        # PIL 이미지 추출 시도
-                        if hasattr(generated_image, '_pil_image'):
-                            display_img = generated_image._pil_image
-                        else:
-                            display_img = generated_image
-                        
-                        st.image(display_img, use_column_width=True)
-                        
-                        # 다운로드 버튼
-                        buf = io.BytesIO()
-                        display_img.save(buf, format="PNG")
-                        byte_im = buf.getvalue()
-                        
-                        st.download_button(
-                            label="스티커 다운로드하기",
-                            data=byte_im,
-                            file_name="praise_sticker.png",
-                            mime="image/png"
-                        )
+            with st.spinner('AI가 스티커를 그리고 있습니다...'):
+                # 호출 시도 1: 최신 ImageGenerationModel 방식
+                try:
+                    if hasattr(genai, 'ImageGenerationModel'):
+                        model = genai.ImageGenerationModel('imagen-4.0-generate-001')
+                        result = model.generate_images(prompt=image_prompt, number_of_images=1)
+                        img = result.images[0]
                     else:
-                        st.error("이미지 생성 모델에 접근할 수 없거나 권한이 없습니다. Google AI Studio 설정을 확인해 주세요.")
-                else:
-                    st.error("설치된 라이브러리 버전이 낮아 이미지 생성 클래스를 찾을 수 없습니다. requirements.txt를 다시 확인해 주세요.")
+                        # 호출 시도 2: 도구가 없을 경우 직접 모델명으로 호출
+                        model = genai.get_model('models/imagen-4.0-generate-001')
+                        # 일부 버전에서는 generate_images가 model 객체에 바로 붙어있음
+                        result = model.generate_images(prompt=image_prompt)
+                        img = result.images[0]
+                except Exception as inner_e:
+                    # 호출 시도 3: 위 방식이 모두 실패할 경우 최후의 수단
+                    st.warning("최신 호출 방식을 시도 중입니다...")
+                    model = genai.get_model('models/imagen-3.0-generate-001')
+                    result = model.generate_images(prompt=image_prompt)
+                    img = result.images[0]
+
+                if img:
+                    st.success("스티커가 완성되었습니다!")
+                    st.markdown(f"""
+                    <div style="background-color: white; padding: 20px; border-radius: 20px; border: 5px solid #FFD700; text-align: center; box-shadow: 10px 10px 20px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                        <h2 style="color: #FF4B4B; margin: 0;">🌟 참 잘했어요! 🌟</h2>
+                        <p style="font-size: 1.2rem; color: #333; margin-top: 10px;"><strong>"{praise_text}"</strong></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    display_img = img._pil_image if hasattr(img, '_pil_image') else img
+                    st.image(display_img, use_column_width=True)
+                    
+                    buf = io.BytesIO()
+                    display_img.save(buf, format="PNG")
+                    st.download_button(label="스티커 다운로드", data=buf.getvalue(), file_name="sticker.png", mime="image/png")
 
         except Exception as e:
             st.error(f"오류 발생: {str(e)}")
-            st.info("💡 힌트: API 키가 정확한지, 혹은 해당 모델 사용 권한이 있는지 확인이 필요합니다.")
+            st.info("💡 만약 'ImageGenerationModel' 관련 에러가 계속된다면, Streamlit Cloud 대시보드에서 앱을 'Delete' 한 후 다시 'New app'으로 배포해 보세요.")
 
 st.divider()
-st.caption("Jenius의 바이브 코딩 실습 프로젝트 3 - Imagen 최신 모델 대응")
+st.caption("Jenius의 바이브 코딩 실습 프로젝트 3 - Imagen 대응")
