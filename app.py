@@ -35,24 +35,39 @@ if st.button("칭찬 스티커 만들기"):
             image_prompt = f"A cute and friendly 3D cartoon character sticker for a student who {praise_text}. White background, vibrant colors, sticker style with a thick white border, high quality, centered."
             
             with st.spinner('AI가 스티커를 그리고 있습니다... (약 10~20초 소요)'):
-                # 최신 방식 (ImageGenerationModel) 호출
-                # 만약 ImageGenerationModel을 찾지 못하면 에러 메시지 출력
+                # 최신 방식 (ImageGenerationModel) 시도
+                # 계정에 따라 권한이 있는 모델이 다를 수 있으므로 순차적으로 시도합니다.
+                candidate_models = [
+                    'imagen-4.0-generate-001',        # Imagen 4
+                    'imagen-3.1-flash-image-preview', # Nano Banana 2
+                    'imagen-3.0-generate-001'         # Imagen 3
+                ]
+                
+                result = None
+                active_model = None
+                
+                # ImageGenerationModel 클래스 지원 여부 확인
                 if hasattr(genai, 'ImageGenerationModel'):
-                    model_name = 'imagen-4.0-generate-001'
-                    model = genai.ImageGenerationModel(model_name)
-                    
-                    result = model.generate_images(
-                        prompt=image_prompt,
-                        number_of_images=1,
-                        aspect_ratio="1:1",
-                        safety_filter_level="block_some",
-                        person_generation="allow_adult"
-                    )
+                    for model_name in candidate_models:
+                        try:
+                            model = genai.ImageGenerationModel(model_name)
+                            # 이미지 생성 시도
+                            result = model.generate_images(
+                                prompt=image_prompt,
+                                number_of_images=1,
+                                safety_filter_level="block_some",
+                                person_generation="allow_adult"
+                            )
+                            if result and result.images:
+                                active_model = model_name
+                                break
+                        except Exception:
+                            continue
                     
                     if result and result.images:
-                        st.success("완성되었습니다!")
+                        st.success(f"스티커가 완성되었습니다! (사용 모델: {active_model})")
                         
-                        # 스티커 카드 디자인
+                        # 스티커 카드 디자인 UI
                         st.markdown(f"""
                         <div style="background-color: white; padding: 20px; border-radius: 20px; border: 5px solid #FFD700; text-align: center; box-shadow: 10px 10px 20px rgba(0,0,0,0.1); margin-bottom: 20px;">
                             <h2 style="color: #FF4B4B; margin: 0;">🌟 참 잘했어요! 🌟</h2>
@@ -61,8 +76,12 @@ if st.button("칭찬 스티커 만들기"):
                         """, unsafe_allow_html=True)
                         
                         generated_image = result.images[0]
-                        # PIL 이미지 추출
-                        display_img = generated_image._pil_image if hasattr(generated_image, '_pil_image') else generated_image
+                        # PIL 이미지 추출 시도
+                        if hasattr(generated_image, '_pil_image'):
+                            display_img = generated_image._pil_image
+                        else:
+                            display_img = generated_image
+                        
                         st.image(display_img, use_column_width=True)
                         
                         # 다운로드 버튼
@@ -77,19 +96,13 @@ if st.button("칭찬 스티커 만들기"):
                             mime="image/png"
                         )
                     else:
-                        st.error("이미지를 생성하지 못했습니다. 다시 시도해 주세요.")
+                        st.error("이미지 생성 모델에 접근할 수 없거나 권한이 없습니다. Google AI Studio 설정을 확인해 주세요.")
                 else:
-                    st.error("설치된 라이브러리가 이미지 생성 모델을 인식하지 못합니다. Reboot app을 한 번 더 진행해 주세요.")
-                    
+                    st.error("설치된 라이브러리 버전이 낮아 이미지 생성 클래스를 찾을 수 없습니다. requirements.txt를 다시 확인해 주세요.")
+
         except Exception as e:
             st.error(f"오류 발생: {str(e)}")
+            st.info("💡 힌트: API 키가 정확한지, 혹은 해당 모델 사용 권한이 있는지 확인이 필요합니다.")
 
 st.divider()
-st.caption("Jenius의 바이브 코딩 실습 프로젝트 3 - Imagen 4 적용 버전")
-
-### ✅ 조치 요약
-1.  **Canvas**의 `requirements.txt`와 동일하게 GitHub의 파일을 수정합니다 (`setuptools` 삭제).
-2.  위의 새로운 `app.py` 코드를 GitHub에 덮어씁니다 (`import pkg_resources` 삭제).
-3.  Streamlit에서 **Manage app -> Reboot app**을 눌러주세요.
-
-에러를 일으키던 코드 자체가 사라졌기 때문에, 이제는 정상적으로 화면이 뜰 것입니다. 마지막으로 한 번만 더 힘내주세요! :)
+st.caption("Jenius의 바이브 코딩 실습 프로젝트 3 - Imagen 최신 모델 대응")
